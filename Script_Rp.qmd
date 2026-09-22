@@ -1,0 +1,68 @@
+---
+title: "Prjet RP - nettoyage des données et analyse exploratoire"
+format: html
+editor: visual
+---
+
+# Importation des packages
+```{r}
+library(readr)
+library(tseries)
+```
+
+
+# 1. Importation de la base et visualisation
+```{r}
+base <- read_csv("balanced_uk_md.csv")
+View(base)
+```
+
+# 2. Modification de la base
+```{r}
+base <- base[-c(337,338),]
+```
+
+# 3. Analyse exploratoire
+
+```{r}
+str(base)
+```
+
+```{r}
+colSums(is.na(base))
+```
+ LIBOR_3mth 22 valeurs manquantes.
+ 
+```{r}
+base <- base[, !(names(base) == "LIBOR_3mth")]
+```
+
+# Vérification de la stationnarité
+
+```{r}
+adf.test(base$EMP_RATE)$p.value
+```
+0.01, p;value inf à 0.05 donc on rejette H0, la série est stationnaire. 
+```{r}
+plot(base$Date, base$EMP_RATE, type = "l",
+     main = "Graphique de la variable à expliquer stationnaire",
+     xlab = "Années",
+     ylab = "EMP_RATE")
+```
+
+# Stat descriptive
+```{r}
+summary(base$EMP_RATE)
+var(base$EMP_RATE)
+sd(base$EMP_RATE)
+```
+
+```{r}
+boxplot(base$EMP_RATE)
+```
+
+
+
+
+
+
