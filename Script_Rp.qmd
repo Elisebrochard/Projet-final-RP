@@ -5,20 +5,22 @@ editor: visual
 ---
 
 # Importation des packages
+
 ```{r}
 library(readr)
 library(tseries)
 library(corrplot)
 ```
 
-
 # 1. Importation de la base et visualisation
+
 ```{r}
 base <- read_csv("balanced_uk_md.csv")
 View(base)
 ```
 
 # 2. Modification de la base
+
 ```{r}
 base <- base[-c(337,338),]
 ```
@@ -32,8 +34,9 @@ str(base)
 ```{r}
 colSums(is.na(base))
 ```
- LIBOR_3mth 22 valeurs manquantes.
- 
+
+LIBOR_3mth 22 valeurs manquantes.
+
 ```{r}
 base <- base[, !(names(base) == "LIBOR_3mth")]
 ```
@@ -43,7 +46,9 @@ base <- base[, !(names(base) == "LIBOR_3mth")]
 ```{r}
 adf.test(base$EMP_RATE)$p.value
 ```
-0.01, p;value inf à 0.05 donc on rejette H0, la série est stationnaire. 
+
+0.01, p;value inf à 0.05 donc on rejette H0, la série est stationnaire.
+
 ```{r}
 plot(base$Date, base$EMP_RATE, type = "l",
      main = "Graphique de la variable à expliquer stationnaire",
@@ -52,6 +57,7 @@ plot(base$Date, base$EMP_RATE, type = "l",
 ```
 
 # Stat descriptive
+
 ```{r}
 summary(base$EMP_RATE)
 var(base$EMP_RATE)
@@ -73,11 +79,9 @@ c <- cor(base_sans_date, method = "spearman")
 corrplot(c, method = "color")
 ```
 
-
 ```{r}
 dim(base_sans_date)
 ```
-
 
 ```{r}
 M <- cor(base_sans_date, method = "spearman")
@@ -127,5 +131,20 @@ corrplot(M_filtered,
          na.label = " ",
          tl.cex = 0.5)
 
+```
+
+```{r}
+corrplot(M, method = "color",
+         order = "hclust",     # regroupe les variables corrélées ensemble
+         addrect = 6,          # dessine des rectangles autour des clusters
+         tl.cex = 0.4)
+```
+
+```{r}
+ggcorrplot(M, 
+           hc.order = TRUE,      # tri par clustering
+           type = "upper",       # seulement moitié supérieure
+           tl.cex = 6,           # texte petit
+           show.diag = FALSE)
 ```
 
