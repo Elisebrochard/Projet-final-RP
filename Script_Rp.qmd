@@ -8,6 +8,7 @@ editor: visual
 ```{r}
 library(readr)
 library(tseries)
+library(corrplot)
 ```
 
 
@@ -61,8 +62,70 @@ sd(base$EMP_RATE)
 boxplot(base$EMP_RATE)
 ```
 
+# Corrélation entres les variables
+
+```{r}
+base_sans_date <- base[,-2]
+```
+
+```{r}
+c <- cor(base_sans_date, method = "spearman")
+corrplot(c, method = "color")
+```
 
 
+```{r}
+dim(base_sans_date)
+```
 
 
+```{r}
+M <- cor(base_sans_date, method = "spearman")
+
+heatmap(M,
+        Colv = TRUE,
+        Rowv = TRUE,
+        scale = "none")
+
+```
+
+```{r}
+library(ggcorrplot)
+
+M <- cor(base_sans_date, method = "spearman")
+
+ggcorrplot(M,
+           type = "lower",
+           lab = FALSE,
+           outline.col = "white")
+
+```
+
+```{r}
+M <- cor(base_sans_date, method = "spearman")
+M[lower.tri(M, diag = TRUE)] <- NA
+
+library(reshape2)
+df_corr <- melt(M, na.rm = TRUE)
+
+top_corr <- df_corr[order(abs(df_corr$value), decreasing = TRUE), ]
+
+head(top_corr, 30)   # les 30 plus fortes corrélations
+
+```
+
+```{r}
+M <- cor(base_sans_date, method = "spearman")
+
+threshold <- 0.5   # à ajuster selon ton besoin
+
+M_filtered <- ifelse(abs(M) >= threshold, M, NA)
+
+library(corrplot)
+corrplot(M_filtered,
+         method = "color",
+         na.label = " ",
+         tl.cex = 0.5)
+
+```
 
