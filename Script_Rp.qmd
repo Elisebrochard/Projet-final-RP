@@ -40,6 +40,11 @@ str(base)
 
 dans le dossier
 
+```{r}
+dim(base)
+```
+
+
 ## b) Valeurs manquantes
 
 ```{r}
