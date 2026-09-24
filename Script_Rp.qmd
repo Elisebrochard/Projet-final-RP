@@ -147,4 +147,3 @@ ggcorrplot(M,
            tl.cex = 6,           # texte petit
            show.diag = FALSE)
 ```
-
