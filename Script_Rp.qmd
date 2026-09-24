@@ -14,26 +14,33 @@ library(EnvStats)
 library(doParallel)
 library(glmnet)
 library(dplyr)
+library(ggplot2)
 ```
 
-# 1. Importation de la base et visualisation
+# Importation de la base et visualisation
 
 ```{r}
 base <- read_csv("balanced_uk_md.csv")
 View(base)
 ```
 
-# 2. Modification de la base
+# Modification de la base
 
 ```{r}
 base <- base[-c(337,338),]
 ```
 
-# 3. Analyse exploratoire
+# 1. Analyse exploratoire
 
 ```{r}
 str(base)
 ```
+
+## a) présentation des données
+
+dans le dossier
+
+## b) Valeurs manquantes
 
 ```{r}
 colSums(is.na(base))
@@ -45,7 +52,7 @@ LIBOR_3mth 22 valeurs manquantes.
 base <- base[, !(names(base) == "LIBOR_3mth")]
 ```
 
-# Vérification de la stationnarité
+## c) stationnarité + graphique
 
 ```{r}
 adf.test(base$EMP_RATE)$p.value
@@ -60,7 +67,7 @@ plot(base$Date, base$EMP_RATE, type = "l",
      ylab = "EMP_RATE")
 ```
 
-# Stat descriptive
+## d) stats descriptives
 
 ```{r}
 summary(base$EMP_RATE)
@@ -78,8 +85,7 @@ boxplot(base$EMP_RATE)
 rosnerTest(base$EMP_RATE, k=3)
 ```
 
-
-# Corrélation entres les variables
+## e) Corrélation entres les variables
 
 ```{r}
 base_sans_date <- base[,-2]
@@ -160,61 +166,74 @@ ggcorrplot(M,
 ```
 
 ```{r}
-# garder les corrélation au delà de 0,9 
-seuil <- 0.9   
+# corrplot des variables très corrélées entre elles
 
-# retirer la variable cible et l'index de la matrice de corrélation
-X <- base_sans_date[, !(names(base_sans_date) %in% c("EMP_RATE", "...1"))]
-M_X <- cor(X, method = "spearman")
+seuil_corr_forte <- 0.9   # seuil de corrélation entre variables explicatives
 
-# variables qui ont une corrélation forte avec une autre
-diag(M_X) <- 0
-max_cor_par_var <- apply(abs(M_X), 1, max)
-vars_fortes <- names(max_cor_par_var[max_cor_par_var >= seuil])
+# matrice de corrélation des variables explicatives (sans la cible ni l'index)
+variables_explicatives <- base_sans_date[, !(names(base_sans_date) %in% c("EMP_RATE", "...1"))]
+matrice_corr_explicatives <- cor(variables_explicatives, method = "spearman")
 
-length(vars_fortes)  
+# variables ayant au moins une corrélation forte avec une autre
+diag(matrice_corr_explicatives) <- 0
+corr_max_par_variable <- apply(abs(matrice_corr_explicatives), 1, max)
+variables_tres_correlees <- names(corr_max_par_variable[corr_max_par_variable >= seuil_corr_forte])
 
-# sous matrice uniquement avec ces variables la 
-M_reduit <- cor(X[, vars_fortes], method = "spearman")
+length(variables_tres_correlees)  # nombre de variables retenues
 
-# corrplot avec clusturing 
+# sous-matrice uniquement sur ces variables
+matrice_corr_reduite <- cor(variables_explicatives[, variables_tres_correlees], method = "spearman")
+
 library(corrplot)
-corrplot(M_reduit, method = "color",
+corrplot(matrice_corr_reduite, method = "color",
          order = "hclust",
-         addrect = 6,          # nombre de clusters encadrés, à ajuster
+         addrect = 6,
          tl.cex = 0.6, tl.col = "black",
          type = "upper")
 ```
 
 ```{r}
-# corrélation avec la variable cible
-cor_var_cible <- cor(X, base$EMP_RATE, method = "spearman")[,1]
-cor_var_cible <- sort(cor_var_cible, decreasing = TRUE)
+# corrélation des variables explicatives avec EMP_RATE
 
-seuil_cible <- 0.1
-cor_var_cible <- cor_var_cible[abs(cor_target) >= seuil_cible]
+seuil_corr_cible <- 0.1   # seuil de corrélation avec la variable à expliquer
 
-barplot(cor_var_cible,
-        las = 2, cex.names = 0.5,
-        col = ifelse(cor_var_cible > 0, "steelblue", "firebrick"),
-        main = "Corrélation entre variables explicatives et EMP_RATE")
+corr_avec_cible <- cor(variables_explicatives, base$EMP_RATE, method = "spearman")[, 1]
+corr_avec_cible <- sort(corr_avec_cible, decreasing = TRUE)
+corr_avec_cible <- corr_avec_cible[abs(corr_avec_cible) >= seuil_corr_cible]
+
+df_corr <- data.frame(
+  variable = names(corr_avec_cible),
+  correlation = corr_avec_cible
+)
+
+ggplot(df_corr, aes(x = reorder(variable, -correlation), y = correlation, fill = correlation > 0)) +
+  geom_col() +
+  scale_fill_manual(values = c("firebrick", "steelblue"), guide = "none") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7)) +
+  labs(x = NULL, y = "Corrélation")
 ```
 
 ```{r}
-vars_liees_cible <- names(cor_target_filtre)
+# tableau croisant les deux analyses
 
-var_corr_emp_rate <- data.frame(
-  Variable = vars_liees_cible,
-  Corr_avec_EMP_RATE = cor_target_filtre[vars_liees_cible],
-  Corr_forte_avec_autres = vars_liees_cible %in% vars_fortes
+variables_liees_a_la_cible <- names(corr_avec_cible)
+
+tableau_corr_cible <- data.frame(
+  Variable = variables_liees_a_la_cible,
+  Corr_avec_EMP_RATE = corr_avec_cible[variables_liees_a_la_cible],
+  Corr_forte_avec_autres = variables_liees_a_la_cible %in% variables_tres_correlees
 )
 
-var_corr_emp_rate[order(-abs(annexe2$Corr_avec_EMP_RATE)), ]
+tableau_corr_cible[order(-abs(tableau_corr_cible$Corr_avec_EMP_RATE)), ]
 ```
 
-# Sélection des variables
 
-## Régressions pénalisées : Ridge, Lasso, Elastic-Net, SCAD et Adaptive Lasso
+
+
+# 2. Sélection des variables
+
+## a) Régressions pénalisées : Ridge, Lasso, Elastic-Net, SCAD, Adaptive Lasso et Elastic-Net
 
 ```{r}
 # y standardisé (centré-réduit)
@@ -258,6 +277,3 @@ model_min_ridge$beta
 model_1se_ridge$beta
 
 ```
-
-
-
