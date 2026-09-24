@@ -10,6 +10,7 @@ editor: visual
 library(readr)
 library(tseries)
 library(corrplot)
+library(EnvStats)
 ```
 
 # 1. Importation de la base et visualisation
@@ -67,6 +68,13 @@ sd(base$EMP_RATE)
 ```{r}
 boxplot(base$EMP_RATE)
 ```
+
+```{r}
+# rosner test - valeur atypiques
+
+rosnerTest(base$EMP_RATE, k=3)
+```
+
 
 # Corrélation entres les variables
 
@@ -147,3 +155,58 @@ ggcorrplot(M,
            tl.cex = 6,           # texte petit
            show.diag = FALSE)
 ```
+
+```{r}
+# garder les corrélation au delà de 0,9 
+seuil <- 0.9   
+
+# retirer la variable cible et l'index de la matrice de corrélation
+X <- base_sans_date[, !(names(base_sans_date) %in% c("EMP_RATE", "...1"))]
+M_X <- cor(X, method = "spearman")
+
+# variables qui ont une corrélation forte avec une autre
+diag(M_X) <- 0
+max_cor_par_var <- apply(abs(M_X), 1, max)
+vars_fortes <- names(max_cor_par_var[max_cor_par_var >= seuil])
+
+length(vars_fortes)  
+
+# sous matrice uniquement avec ces variables la 
+M_reduit <- cor(X[, vars_fortes], method = "spearman")
+
+# corrplot avec clusturing 
+library(corrplot)
+corrplot(M_reduit, method = "color",
+         order = "hclust",
+         addrect = 6,          # nombre de clusters encadrés, à ajuster
+         tl.cex = 0.6, tl.col = "black",
+         type = "upper")
+```
+
+```{r}
+# corrélation avec la variable cible
+cor_var_cible <- cor(X, base$EMP_RATE, method = "spearman")[,1]
+cor_var_cible <- sort(cor_var_cible, decreasing = TRUE)
+
+seuil_cible <- 0.1
+cor_var_cible <- cor_var_cible[abs(cor_target) >= seuil_cible]
+
+barplot(cor_var_cible,
+        las = 2, cex.names = 0.5,
+        col = ifelse(cor_var_cible > 0, "steelblue", "firebrick"),
+        main = "Corrélation entre variables explicatives et EMP_RATE")
+```
+
+```{r}
+vars_liees_cible <- names(cor_target_filtre)
+
+var_corr_emp_rate <- data.frame(
+  Variable = vars_liees_cible,
+  Corr_avec_EMP_RATE = cor_target_filtre[vars_liees_cible],
+  Corr_forte_avec_autres = vars_liees_cible %in% vars_fortes
+)
+
+var_corr_emp_rate[order(-abs(annexe2$Corr_avec_EMP_RATE)), ]
+```
+
+
