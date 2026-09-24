@@ -11,6 +11,9 @@ library(readr)
 library(tseries)
 library(corrplot)
 library(EnvStats)
+library(doParallel)
+library(glmnet)
+library(dplyr)
 ```
 
 # 1. Importation de la base et visualisation
@@ -208,5 +211,53 @@ var_corr_emp_rate <- data.frame(
 
 var_corr_emp_rate[order(-abs(annexe2$Corr_avec_EMP_RATE)), ]
 ```
+
+# Sélection des variables
+
+## Régressions pénalisées : Ridge, Lasso, Elastic-Net, SCAD et Adaptive Lasso
+
+```{r}
+# y standardisé (centré-réduit)
+y <- data.frame(base) |>
+  select(EMP_RATE) |>
+  scale(center = TRUE, scale = TRUE) |>
+  as.matrix()
+
+# x standardisé (toutes les variables sauf la cible et Date/...1)
+x <- data.frame(base) |>
+  select(-EMP_RATE, -Date, -...1) |>
+  scale(center = TRUE, scale = TRUE) |>
+  as.matrix()
+
+dim(x)  
+dim(y)
+```
+
+### Ridge
+
+```{r}
+set.seed(1) # reproductibilité
+
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+
+# Ridge, alpha = 0
+ridge_cv <- cv.glmnet(x, y, alpha = 0, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+par(mfrow=c(1,1))
+plot(ridge_cv,)
+
+lambda_min_ridge <- ridge_cv$lambda.min
+lambda_1se_ridge <- ridge_cv$lambda.1se
+
+# 2 modèles finaux 
+model_min_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_min_ridge, standardize = TRUE)
+summary(model_min_ridge)
+model_1se_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_1se_ridge, standardize = TRUE)
+summary(model_1se_ridge)
+
+model_min_ridge$beta
+model_1se_ridge$beta
+
+```
+
 
 
