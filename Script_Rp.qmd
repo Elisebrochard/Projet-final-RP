@@ -129,3 +129,21 @@ corrplot(M_filtered,
 
 ```
 
+
+
+```{r}
+M <- cor(base_sans_date, method = "spearman", use = "pairwise.complete.obs")
+
+library(corrplot)
+
+# Matrice complète réordonnée par clustering hiérarchique
+corrplot(M,
+         method = "color",
+         order = "hclust",       # Regroupe les variables corrélées entre elles !
+         hclust.method = "ward.D2",
+         tl.pos = "n",           # Masque le texte des 100+ variables sur les axes
+         cl.pos = "r",           # Garde l'échelle de couleur à droite
+         title = "Groupes de multicolinéarité (Clustering Hiérarchique)",
+         mar = c(0, 0, 2, 0))
+```
+
