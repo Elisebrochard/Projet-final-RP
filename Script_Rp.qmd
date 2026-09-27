@@ -15,6 +15,7 @@ library(doParallel)
 library(glmnet)
 library(dplyr)
 library(ggplot2)
+library(ncvreg)
 ```
 
 # Importation de la base et visualisation
@@ -301,14 +302,14 @@ lambda_cv_lasso <- lasso_cv$lambda.min
 lambda_cv_lasso
 
 # évaluation du modèle final
-model_cv_lasso <- glmnet(x, y, alpha = 0, lambda = lambda_cv_lasso, standardize = T)
+model_cv_lasso <- glmnet(x, y, alpha = 1, lambda = lambda_cv_lasso, standardize = T)
 summary(model_cv_lasso)
 
 # betas du Lasso
 model_cv_lasso$beta
 ```
 
-#### Elastic Net
+#### Elastic Net (fixe)
 
 ```{r}
 set.seed(1) # reproductibilité
@@ -325,12 +326,55 @@ lambda_cv_en <- en_cv$lambda.min
 lambda_cv_en
 
 # évaluation du modèle final
-model_cv_en <- glmnet(x, y, alpha = 0, lambda = lambda_cv_en, standardize = T)
+model_cv_en <- glmnet(x, y, alpha = 0.5, lambda = lambda_cv_en, standardize = T)
 summary(model_cv_en)
 
 # betas de Elastic Net
 model_cv_en$beta
 ```
+
+#### Elastic Net (gird search)
+
+```{r}
+# reproductibilité
+set.seed(1)	
+
+en_min <- NULL
+
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+
+alphalist <- seq(0.1, 0.9,by=0.1)
+
+elasticnet <- lapply(alphalist, function(a){
+  cv.glmnet(x, y, alpha=a, lambda = lambdas_to_try,
+            standardize = T, nfolds = 10)
+  })
+
+for (i in 1:length(alphalist)) {
+  print(min(elasticnet[[i]]$cvm))
+  en_min <- c(en_min, min(elasticnet[[i]]$cvm))
+}
+
+elasticnet_cvm <- min(en_min)
+elasticnet_cvm
+
+en_cv <- cv.glmnet(x, y, alpha = elasticnet_cvm, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+plot(en_cv)
+
+# meilleur lambda
+lambda_cv <- en_cv$lambda.min
+lambda_cv
+
+# évaluation du modèle final
+model_cv <- glmnet(x, y, alpha = elasticnet_cvm, lambda = lambda_cv, standardize = T)
+
+# betas
+model_cv$beta
+
+# noms des variables
+which(! coef(model_cv) == 0, arr.ind = TRUE)
+```
+
 
 #### SCAD
 
@@ -343,7 +387,7 @@ summary(fit_SCAD, lambda=0.10)
 plot(fit_SCAD)
 
 # validation croisé pour le meilleur lambda 
-cvfit_SCAD=cv.ncvreg(x, y, penalty = c("SCAD"))
+cvfit_SCAD = cv.ncvreg(x, y, penalty = c("SCAD"))
 plot(cvfit_SCAD)
 
 # on attribue le meilleur lambda 
@@ -382,7 +426,7 @@ poids.ridge <- Matrix(poids.ridge)
 
 # Adaptive LASSO
 fit_adalasso_r <- glmnet(x, y, penalty.factor = poids.ridge)
-fit_cv_adalasso_r <- cv.glmnet(x, y,penalty.factor=poids.ridge)
+fit_cv_adalasso_r <- cv.glmnet(x, y,penalty.factor = poids.ridge)
 plot(fit_cv_adalasso_r)
 
 # meilleur lambda
@@ -478,14 +522,14 @@ lambda_cv_lasso_1se <- lasso_cv$lambda.1se
 lambda_cv_lasso_1se
 
 # évaluation du modèle final
-model_cv_lasso_1se <- glmnet(x, y, alpha = 0, lambda = lambda_cv_lasso_1se, standardize = T)
+model_cv_lasso_1se <- glmnet(x, y, alpha = 1, lambda = lambda_cv_lasso_1se, standardize = T)
 summary(model_cv_lasso_1se)
 
 # betas du Lasso
 model_cv_lasso_1se$beta
 ```
 
-#### Elastic Net
+#### Elastic Net (fixe)
 
 ```{r}
 # set.seed(1) # reproductibilité
@@ -502,11 +546,54 @@ lambda_cv_en_1se <- en_cv$lambda.1se
 lambda_cv_en_1se
 
 # évaluation du modèle final
-model_cv_en_1se <- glmnet(x, y, alpha = 0, lambda = lambda_cv_en_1se, standardize = T)
+model_cv_en_1se <- glmnet(x, y, alpha = 0.5, lambda = lambda_cv_en_1se, standardize = T)
 summary(model_cv_en_1se)
 
 # betas de Elastic Net
 model_cv_en_1se$beta
+```
+
+
+#### Elastic Net (gird search)
+
+```{r}
+# reproductibilité
+# set.seed(1)	
+# 
+# en_min <- NULL
+# 
+# lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+# 
+# alphalist <- seq(0.1, 0.9,by=0.1)
+# 
+# elasticnet <- lapply(alphalist, function(a){
+#   cv.glmnet(x, y, alpha=a, lambda = lambdas_to_try,
+#             standardize = T, nfolds = 10)
+#   })
+# 
+# for (i in 1:length(alphalist)) {
+#   print(min(elasticnet[[i]]$cvm))
+#   en_min <- c(en_min, min(elasticnet[[i]]$cvm))
+# }
+# 
+# elasticnet_cvm <- min(en_min)
+# elasticnet_cvm
+# 
+# en_cv <- cv.glmnet(x, y, alpha = elasticnet_cvm, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+# plot(en_cv)
+
+# meilleur lambda
+lambda_cv_1se <- en_cv$lambda.1se
+lambda_cv_1se
+
+# évaluation du modèle final
+model_cv_1se <- glmnet(x, y, alpha = elasticnet_cvm, lambda = lambda_cv_1se, standardize = T)
+
+# betas
+model_cv_1se$beta
+
+# noms des variables
+which(! coef(model_cv_1se) == 0, arr.ind = TRUE)
 ```
 
 #### SCAD
@@ -532,6 +619,7 @@ SCAD_Final_1se = ncvreg(x, y, lambda = lambda_SCAD_1se, alpha = 1)
 SCAD_Final_1se$beta
 
 which(! coef(SCAD_Final_1se) == 0, arr.ind = TRUE)
+# A REVOIR CA MARCHE PAS !!!!!!!
 
 ```
 
