@@ -36,7 +36,7 @@ base <- base[-c(337,338),]
 str(base)
 ```
 
-## a) présentation des données
+## a) Présentation des données
 
 dans le dossier
 
@@ -56,7 +56,7 @@ LIBOR_3mth 22 valeurs manquantes.
 base <- base[, !(names(base) == "LIBOR_3mth")]
 ```
 
-## c) stationnarité + graphique
+## c) Stationnarité + graphique
 
 ```{r}
 adf.test(base$EMP_RATE)$p.value
@@ -71,7 +71,7 @@ plot(base$Date, base$EMP_RATE, type = "l",
      ylab = "EMP_RATE")
 ```
 
-## d) stats descriptives
+## d) Stats descriptives
 
 ```{r}
 summary(base$EMP_RATE)
@@ -241,7 +241,6 @@ base <- data.frame(base)
 training_dlbase <- base
 ```
 
-
 ```{r}
 # y standardisé (centré-réduit)
 y <- data.frame(training_dlbase) |>
@@ -259,7 +258,9 @@ dim(x)
 dim(y)
 ```
 
-### Ridge
+### i) Méthode avec les lambdas min
+
+#### Ridge
 
 ```{r}
 set.seed(1) # reproductibilité
@@ -271,20 +272,343 @@ ridge_cv <- cv.glmnet(x, y, alpha = 0, lambda = lambdas_to_try, standardize = T,
 par(mfrow=c(1,1))
 plot(ridge_cv,)
 
-lambda_min_ridge <- ridge_cv$lambda.min
-lambda_1se_ridge <- ridge_cv$lambda.1se
+# meilleur lambda
+lambda_cv_ridge <- ridge_cv$lambda.min
+lambda_cv_ridge
 
-# 2 modèles finaux 
+# évaluation du modèle final
+model_cv_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_cv_ridge, standardize = T)
+summary(model_cv_ridge)
 
-model_min_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_min_ridge, standardize = TRUE)
-summary(model_min_ridge)
-
-model_1se_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_1se_ridge, standardize = TRUE)
-summary(model_1se_ridge)
-
-# betas
-model_min_ridge$beta
-model_1se_ridge$beta
+# betas du Ridge
+model_cv_ridge$beta
 ```
 
+#### Lasso
 
+```{r}
+set.seed(1) # reproductibilité
+
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+
+# Lasso, alpha = 1
+lasso_cv <- cv.glmnet(x, y, alpha = 1, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+par(mfrow=c(1,1))
+plot(lasso_cv)
+
+# meilleur lambda
+lambda_cv_lasso <- lasso_cv$lambda.min
+lambda_cv_lasso
+
+# évaluation du modèle final
+model_cv_lasso <- glmnet(x, y, alpha = 0, lambda = lambda_cv_lasso, standardize = T)
+summary(model_cv_lasso)
+
+# betas du Lasso
+model_cv_lasso$beta
+```
+
+#### Elastic Net
+
+```{r}
+set.seed(1) # reproductibilité
+
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+
+# Elastic Net, alpha = 0,5
+en_cv <- cv.glmnet(x, y, alpha = 0.5, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+par(mfrow=c(1,1))
+plot(en_cv)
+
+# meilleur lambda
+lambda_cv_en <- en_cv$lambda.min
+lambda_cv_en
+
+# évaluation du modèle final
+model_cv_en <- glmnet(x, y, alpha = 0, lambda = lambda_cv_en, standardize = T)
+summary(model_cv_en)
+
+# betas de Elastic Net
+model_cv_en$beta
+```
+
+#### SCAD
+
+```{r}
+# reproductibilité
+set.seed(1)	
+
+fit_SCAD = ncvreg(x, y, penalty = c("SCAD"))
+summary(fit_SCAD, lambda=0.10)
+plot(fit_SCAD)
+
+# validation croisé pour le meilleur lambda 
+cvfit_SCAD=cv.ncvreg(x, y, penalty = c("SCAD"))
+plot(cvfit_SCAD)
+
+# on attribue le meilleur lambda 
+lambda_SCAD <- cvfit_SCAD$lambda.min
+lambda_SCAD
+
+# modele final
+SCAD_Final=ncvreg(x, y, lambda = lambda_SCAD, alpha = 1)
+SCAD_Final$beta
+
+which(! coef(SCAD_Final) == 0, arr.ind = TRUE)
+
+```
+
+#### Adaptative Lasso
+
+##### Adaptative Lasso - Ridge
+
+```{r}
+# reproductibilité
+set.seed(1)
+
+# Définir les poids de la régression Ridge
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+ridge_cv <- cv.glmnet(x, y, alpha = 0, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+lambda_cv <- ridge_cv$lambda.min
+model_cv <- glmnet(x, y, alpha = 0, lambda = lambda_cv, standardize = T)
+coef_ridge <- predict(model_cv,type="coef",s=lambda_cv)
+
+# gamma = 0.5
+gamma = 0.5
+w0 <- 1/(abs(coef_ridge) + (1/length(y)))
+poids.ridge <- w0^(gamma)
+poids.ridge <- poids.ridge[2:nrow(poids.ridge),]
+poids.ridge <- Matrix(poids.ridge)
+
+# Adaptive LASSO
+fit_adalasso_r <- glmnet(x, y, penalty.factor = poids.ridge)
+fit_cv_adalasso_r <- cv.glmnet(x, y,penalty.factor=poids.ridge)
+plot(fit_cv_adalasso_r)
+
+# meilleur lambda
+lambda_cv_adalasso_r <- fit_cv_adalasso_r$lambda.min
+lambda_cv_adalasso_r
+
+# évaluation du modèle
+model_cv_adalasso_r <- glmnet(x, y, alpha = 1, lambda = lambda_cv_adalasso_r, standardize = T)
+
+# Lasso betas
+model_cv_adalasso_r$beta
+
+which(! coef(model_cv_adalasso_r) == 0, arr.ind = TRUE)
+```
+
+##### Adaptative Lasso - Lasso
+
+```{r}
+# reproductibilité
+set.seed(1)	
+
+
+model_cv <- glmnet(x, y, alpha = 1, lambda = lambda_cv, standardize = T)
+coef_lasso <- predict(model_cv,type="coef",s = lambda_cv)
+
+# gamma = 0.5
+gamma=0.5
+w0<-1/(abs(coef_lasso) + (1/length(y)))
+poids.lasso<-w0^(gamma)
+poids.lasso <- poids.lasso[2:nrow(poids.lasso),]
+poids.lasso <- Matrix(poids.lasso)
+
+# Adaptive LASSO
+fit_adalasso <- glmnet(x, y, penalty.factor =poids.lasso)
+fit_cv_adalasso<-cv.glmnet(x, y,penalty.factor=poids.lasso)
+
+# graph
+plot(fit_cv_adalasso)
+
+# meilleur lambda
+lambda_cv_adalasso <- fit_cv_adalasso$lambda.min
+lambda_cv_adalasso
+
+# évaluation du modèle final
+model_cv_adalasso <- glmnet(x, y, alpha = 1, lambda = lambda_cv_adalasso, standardize = T, penalty.factor = poids.lasso)
+
+# Lasso betas
+model_cv_adalasso$beta
+
+which(! coef(model_cv_adalasso) == 0, arr.ind = TRUE)
+```
+
+### ii) Méthode avec les lambdas 1se
+
+#### Ridge
+
+```{r}
+# set.seed(1) # reproductibilité
+# 
+# lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+# 
+# # Ridge, alpha = 0
+# ridge_cv <- cv.glmnet(x, y, alpha = 0, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+# par(mfrow=c(1,1))
+# plot(ridge_cv)
+
+# meilleur lambda
+lambda_cv_ridge_1se <- ridge_cv$lambda.1se
+lambda_cv_ridge_1se
+
+# évaluation du modèle final
+model_cv_ridge_1se <- glmnet(x, y, alpha = 0, lambda = lambda_cv_ridge_1se, standardize = T)
+summary(model_cv_ridge_1se)
+
+# betas du Ridge
+model_cv_ridge_1se$beta
+```
+
+#### Lasso
+
+```{r}
+# set.seed(1) # reproductibilité
+# 
+# lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+# 
+# # Lasso, alpha = 1
+# lasso_cv <- cv.glmnet(x, y, alpha = 1, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+# par(mfrow=c(1,1))
+# plot(lasso_cv)
+
+# meilleur lambda
+lambda_cv_lasso_1se <- lasso_cv$lambda.1se
+lambda_cv_lasso_1se
+
+# évaluation du modèle final
+model_cv_lasso_1se <- glmnet(x, y, alpha = 0, lambda = lambda_cv_lasso_1se, standardize = T)
+summary(model_cv_lasso_1se)
+
+# betas du Lasso
+model_cv_lasso_1se$beta
+```
+
+#### Elastic Net
+
+```{r}
+# set.seed(1) # reproductibilité
+# 
+# lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+# 
+# # Elastic Net, alpha = 0,5
+# en_cv <- cv.glmnet(x, y, alpha = 0.5, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+# par(mfrow=c(1,1))
+# plot(en_cv)
+
+# meilleur lambda
+lambda_cv_en_1se <- en_cv$lambda.1se
+lambda_cv_en_1se
+
+# évaluation du modèle final
+model_cv_en_1se <- glmnet(x, y, alpha = 0, lambda = lambda_cv_en_1se, standardize = T)
+summary(model_cv_en_1se)
+
+# betas de Elastic Net
+model_cv_en_1se$beta
+```
+
+#### SCAD
+
+```{r}
+# # reproductibilité
+# set.seed(1)	
+# 
+# fit_SCAD = ncvreg(x, y, penalty = c("SCAD"))
+# summary(fit_SCAD, lambda=0.10)
+# plot(fit_SCAD)
+# 
+# # validation croisé pour le meilleur lambda 
+# cvfit_SCAD = cv.ncvreg(x, y, penalty = c("SCAD"))
+# plot(cvfit_SCAD)
+
+# on attribue le meilleur lambda 
+lambda_SCAD_1se <- cvfit_SCAD$lambda.1se
+lambda_SCAD_1se
+
+# modele final
+SCAD_Final_1se = ncvreg(x, y, lambda = lambda_SCAD_1se, alpha = 1)
+SCAD_Final_1se$beta
+
+which(! coef(SCAD_Final_1se) == 0, arr.ind = TRUE)
+
+```
+
+#### Adaptative Lasso
+
+##### Adaptative Lasso - Ridge
+
+```{r}
+# reproductibilité
+set.seed(1)
+
+# Définir les poids de la régression Ridge
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
+ridge_cv <- cv.glmnet(x, y, alpha = 0, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
+
+lambda_cv <- ridge_cv$lambda.min
+model_cv <- glmnet(x, y, alpha = 0, lambda = lambda_cv, standardize = T)
+coef_ridge <- predict(model_cv,type="coef",s = lambda_cv)
+
+# gamma = 0.5
+gamma = 0.5
+w0 <- 1/(abs(coef_ridge) + (1/length(y)))
+poids.ridge <- w0^(gamma)
+poids.ridge <- poids.ridge[2:nrow(poids.ridge),]
+poids.ridge <- Matrix(poids.ridge)
+
+# Adaptive LASSO
+fit_adalasso_r_1se <- glmnet(x, y, penalty.factor = poids.ridge)
+fit_cv_adalasso_r_1se <- cv.glmnet(x, y,penalty.factor=poids.ridge)
+plot(fit_cv_adalasso_r_1se)
+
+# meilleur lambda
+lambda_cv_adalasso_r_1se <- fit_cv_adalasso_r_1se$lambda.1se
+lambda_cv_adalasso_r_1se
+
+# évaluation du modèle
+model_cv_adalasso_r_1se <- glmnet(x, y, alpha = 1, lambda = lambda_cv_adalasso_r_1se, standardize = T)
+
+# Lasso betas
+model_cv_adalasso_r_1se$beta
+
+which(! coef(model_cv_adalasso_r_1se) == 0, arr.ind = TRUE)
+```
+
+##### Adaptative Lasso - Lasso
+
+```{r}
+# reproductibilité
+set.seed(1)	
+
+
+model_cv <- glmnet(x, y, alpha = 1, lambda = lambda_cv, standardize = T)
+coef_lasso <- predict(model_cv,type="coef",s = lambda_cv)
+
+# gamma = 0.5
+gamma=0.5
+w0<-1/(abs(coef_lasso) + (1/length(y)))
+poids.lasso<-w0^(gamma)
+poids.lasso <- poids.lasso[2:nrow(poids.lasso),]
+poids.lasso <- Matrix(poids.lasso)
+
+# Adaptive LASSO
+fit_adalasso <- glmnet(x, y, penalty.factor = poids.lasso)
+fit_cv_adalasso<-cv.glmnet(x, y,penalty.factor= poids.lasso)
+
+# graph
+plot(fit_cv_adalasso)
+
+# meilleur lambda
+lambda_cv_adalasso_1se <- fit_cv_adalasso$lambda.1se
+lambda_cv_adalasso_1se
+
+# évaluation du modèle final
+model_cv_adalasso_1se <- glmnet(x, y, alpha = 1, lambda = lambda_cv_adalasso_1se, standardize = T, penalty.factor = poids.lasso)
+
+# Lasso betas
+model_cv_adalasso_1se$beta
+
+which(! coef(model_cv_adalasso_1se) == 0, arr.ind = TRUE)
+```
