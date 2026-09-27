@@ -44,7 +44,6 @@ dans le dossier
 dim(base)
 ```
 
-
 ## b) Valeurs manquantes
 
 ```{r}
@@ -233,22 +232,25 @@ tableau_corr_cible <- data.frame(
 tableau_corr_cible[order(-abs(tableau_corr_cible$Corr_avec_EMP_RATE)), ]
 ```
 
-
-
-
 # 2. Sélection des variables
 
 ## a) Régressions pénalisées : Ridge, Lasso, Elastic-Net, SCAD, Adaptive Lasso et Elastic-Net
 
 ```{r}
+base <- data.frame(base)
+training_dlbase <- base
+```
+
+
+```{r}
 # y standardisé (centré-réduit)
-y <- data.frame(base) |>
+y <- data.frame(training_dlbase) |>
   select(EMP_RATE) |>
   scale(center = TRUE, scale = TRUE) |>
   as.matrix()
 
 # x standardisé (toutes les variables sauf la cible et Date/...1)
-x <- data.frame(base) |>
+x <- data.frame(training_dlbase) |>
   select(-EMP_RATE, -Date, -...1) |>
   scale(center = TRUE, scale = TRUE) |>
   as.matrix()
@@ -273,12 +275,16 @@ lambda_min_ridge <- ridge_cv$lambda.min
 lambda_1se_ridge <- ridge_cv$lambda.1se
 
 # 2 modèles finaux 
+
 model_min_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_min_ridge, standardize = TRUE)
 summary(model_min_ridge)
+
 model_1se_ridge <- glmnet(x, y, alpha = 0, lambda = lambda_1se_ridge, standardize = TRUE)
 summary(model_1se_ridge)
 
+# betas
 model_min_ridge$beta
 model_1se_ridge$beta
-
 ```
+
+
