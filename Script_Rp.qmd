@@ -268,14 +268,14 @@ en_min <- NULL
 
 lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
 
-alphalist <- seq(0.1, 0.9,by=0.1)
+alphalist <- seq(0.1,by=0.1)
 
 elasticnet <- lapply(alphalist, function(a){
   cv.glmnet(x, y, alpha=a, lambda = lambdas_to_try,
             standardize = T, nfolds = 10)
   })
 
-for (i in 1:length(alphalist)) {
+for (i in 1:9) {
   print(min(elasticnet[[i]]$cvm))
   en_min <- c(en_min, min(elasticnet[[i]]$cvm))
 }
@@ -303,28 +303,42 @@ which(! coef(model_cv_1se) == 0, arr.ind = TRUE)
 ### SCAD
 
 ```{r}
-# # reproductibilité
-set.seed(1)
+# reproductibilité
+set.seed(1)	
 
-fit_SCAD = ncvreg(x, y, penalty = c("SCAD"))
-summary(fit_SCAD, lambda=0.10)
-plot(fit_SCAD)
-
-# validation croisé pour le meilleur lambda
-cvfit_SCAD = cv.ncvreg(x, y, penalty = c("SCAD"))
+# validation croisé pour le meilleur lambda 
+cvfit_SCAD=cv.ncvreg(x, y, penalty = c("SCAD"))
 plot(cvfit_SCAD)
 
-# on attribue le meilleur lambda 
-lambda_SCAD_1se <- cvfit_SCAD$lambda.1se
-lambda_SCAD_1se
+# lambda.min
 
-# modele final
-SCAD_Final_1se = ncvreg(x, y, lambda = lambda_SCAD_1se, alpha = 1)
-SCAD_Final_1se$beta
+lambda_min <- cvfit_SCAD$lambda.min
 
-which(! coef(SCAD_Final_1se) == 0, arr.ind = TRUE)
-# A REVOIR CA MARCHE PAS !!!!!!!
+# indice correspondant à lambda.min
+i_min <- which.min(cvfit_SCAD$cve)
 
+# calcul de lambda.1se
+# erreur CV minimale
+cve_min <- cvfit_SCAD$cve[i_min]
+
+# erreur-type associée à l'erreur minimale
+cvse_min <- cvfit_SCAD$cvse[i_min]
+
+# seuil de la règle des 1-SE
+seuil_1se <- cve_min + cvse_min
+
+# lambdas dont l'erreur CV est inférieure au seuil
+lambda_1se_candidates <- cvfit_SCAD$lambda[cvfit_SCAD$cve <= seuil_1se]
+
+# plus grand lambda respectant la règle des 1-SE
+lambda_cv <- max(lambda_1se_candidates)
+lambda_cv
+
+# modèle SCAD final avec lambda.1se
+SCAD_Final <- ncvreg(x,y,penalty = "SCAD",lambda = lambda_cv)
+SCAD_Final$beta
+
+which(! coef(SCAD_Final) == 0, arr.ind = TRUE)
 ```
 
 ### Adaptative Lasso
@@ -339,7 +353,7 @@ set.seed(1)
 lambdas_to_try <- 10^seq(-3, 5, length.out = 100)
 ridge_cv <- cv.glmnet(x, y, alpha = 0, lambda = lambdas_to_try, standardize = T, nfolds = 10) 
 
-lambda_cv <- ridge_cv$lambda.min
+lambda_cv <- ridge_cv$lambda.1se
 model_cv <- glmnet(x, y, alpha = 0, lambda = lambda_cv, standardize = T)
 coef_ridge <- predict(model_cv,type="coef",s = lambda_cv)
 
@@ -374,11 +388,10 @@ which(! coef(model_cv_adalasso_r_1se) == 0, arr.ind = TRUE)
 # reproductibilité
 set.seed(1)	
 
-
 model_cv <- glmnet(x, y, alpha = 1, lambda = lambda_cv, standardize = T)
 coef_lasso <- predict(model_cv,type="coef",s = lambda_cv)
 
-# gamma = 0.5
+# poids avec gamma = 0.5
 gamma=0.5
 w0<-1/(abs(coef_lasso) + (1/length(y)))
 poids.lasso<-w0^(gamma)
