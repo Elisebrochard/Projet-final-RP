@@ -16,6 +16,7 @@ library(glmnet)
 library(dplyr)
 library(ggplot2)
 library(ncvreg)
+library(kableExtra)
 ```
 
 # Importation de la base et visualisation
@@ -331,11 +332,11 @@ seuil_1se <- cve_min + cvse_min
 lambda_1se_candidates <- cvfit_SCAD$lambda[cvfit_SCAD$cve <= seuil_1se]
 
 # plus grand lambda respectant la règle des 1-SE
-lambda_cv <- max(lambda_1se_candidates)
-lambda_cv
+lambda_scad_1se <- max(lambda_1se_candidates)
+lambda_scad_1se
 
 # modèle SCAD final avec lambda.1se
-SCAD_Final <- ncvreg(x,y,penalty = "SCAD",lambda = lambda_cv)
+SCAD_Final <- ncvreg(x,y,penalty = "SCAD",lambda = lambda_scad_1se)
 SCAD_Final$beta
 
 which(! coef(SCAD_Final) == 0, arr.ind = TRUE)
@@ -419,5 +420,30 @@ which(! coef(model_cv_adalasso_1se) == 0, arr.ind = TRUE)
 ```
 
 ## b) Comparaison sous forme de tableau des hyperparamètres et variables sélectionnées par les différentes approches en reportant ces variables sélectionnées estimées par les MCO
+
+```{r}
+hyperparam <- data.frame(
+  Paramètre = c("Lambda", "Alpha"),
+  Ridge = c(round(lambda_cv_ridge_1se, 5), 0),
+  Lasso = c(round(lambda_cv_lasso_1se, 5), 1),
+  `Elastic-Net-Fixed` = c(round(lambda_cv_en_1se, 5), 0.5),
+  `Elastic-Net-Gird-Search` = c(round(lambda_cv_1se, 5), 0.6),
+  SCAD = c(round(lambda_scad_1se, 5), " - "),
+  `Adaptive Lasso Lasso` = c(round(lambda_cv_adalasso_1se, 5), " - "),
+  `Adaptive Lasso Ridge` = c(round(lambda_cv_adalasso_r_1se, 5), " - ")
+)
+
+hyperparam |>
+  kable(
+    caption = "Estimation des hyperparamètres",
+    digits = 5
+  ) |>
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover")
+  )
+```
+
 
 
