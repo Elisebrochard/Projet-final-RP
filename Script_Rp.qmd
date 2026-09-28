@@ -162,7 +162,7 @@ tableau_corr_cible[order(-abs(tableau_corr_cible$Corr_avec_EMP_RATE)), ]
 
 # 2. Sélection des variables
 
-## a) Régressions pénalisées : Ridge, Lasso, Elastic-Net, SCAD, Adaptive Lasso et Elastic-Net
+## a) Régressions pénalisées : Ridge, Lasso, Elastic-Net (fixe), Elastic Net (grid search), SCAD et Adaptive Lasso
 
 ```{r}
 base <- data.frame(base)
@@ -260,7 +260,7 @@ summary(model_cv_en)
 model_cv_en$beta
 ```
 
-#### Elastic Net (gird search)
+#### Elastic Net (grid search)
 
 ```{r}
 # reproductibilité
@@ -480,8 +480,7 @@ summary(model_cv_en_1se)
 model_cv_en_1se$beta
 ```
 
-
-#### Elastic Net (gird search)
+#### Elastic Net (grid search)
 
 ```{r}
 # reproductibilité
@@ -627,4 +626,7 @@ model_cv_adalasso_1se$beta
 
 which(! coef(model_cv_adalasso_1se) == 0, arr.ind = TRUE)
 ```
+
+## b) Comparaison sous forme de tableau des hyperparamètres et variables sélectionnées par les différentes approches en reportant ces variables sélectionnées estimées par les MCO
+
 
