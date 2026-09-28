@@ -93,6 +93,11 @@ rosnerTest(base$EMP_RATE, k=3)
 ## e) Corrélation entres les variables
 
 ```{r}
+base_sans_date <- base[, !(names(base) == "Date")]
+```
+
+
+```{r}
 # corrplot des variables très corrélées entre elles
 
 seuil_corr_forte <- 0.9   # seuil de corrélation entre variables explicatives
