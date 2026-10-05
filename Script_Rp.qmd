@@ -446,4 +446,162 @@ hyperparam |>
 ```
 
 
+### Tableau avec les estimations MCO
+
+```{r}
+library(dplyr)
+library(kableExtra)
+
+# ==============================================================================
+# 1. Estimation du MCO global (RLM)
+# ==============================================================================
+
+df_data <- data.frame(EMP_RATE = y, x)
+rlm_model <- lm(EMP_RATE ~ ., data = df_data)
+summary_rlm <- summary(rlm_model)
+
+# Récupération des coefficients du MCO et formatage avec étoiles de significativité
+get_rlm_coef_stars <- function(var_name) {
+  coefs <- summary_rlm$coefficients
+  if (var_name %in% rownames(coefs)) {
+    val <- coefs[var_name, "Estimate"]
+    pval <- coefs[var_name, "Pr(>|t|)"]
+    
+    stars <- ifelse(pval < 0.01, "***",
+             ifelse(pval < 0.05, "**",
+             ifelse(pval < 0.1, "*", "")))
+    
+    return(paste0(round(val, 3), stars))
+  }
+  return("")
+}
+
+# ==============================================================================
+# 2. Fonction utilitaire pour extraire les coefficients des méthodes pénalisées
+# ==============================================================================
+
+get_penalized_coef <- function(model, var_name) {
+  coefs <- as.matrix(coef(model))
+  
+  if (var_name %in% rownames(coefs)) {
+    val <- coefs[var_name, 1]
+    if (val == 0) return("") # Case vide si la variable est éliminée
+    return(as.character(round(val, 3)))
+  }
+  return("")
+}
+
+# ==============================================================================
+# 3. Construction du Tableau Comparatif des Coefficients
+# ==============================================================================
+
+# Liste de toutes les variables explicatives (colonnes de x)
+all_vars <- colnames(x)
+
+tableau_comparaison_beta <- data.frame(
+  Variable = all_vars,
+  `RLM (MCO)` = sapply(all_vars, get_rlm_coef_stars),
+  Ridge = sapply(all_vars, get_penalized_coef, model = model_cv_ridge_1se),
+  LASSO = sapply(all_vars, get_penalized_coef, model = model_cv_lasso_1se),
+  `Elastic-Net (fixed 0.5)` = sapply(all_vars, get_penalized_coef, model = model_cv_en_1se),
+  `Elastic-Net (grid search)` = sapply(all_vars, get_penalized_coef, model = model_cv_1se),
+  aLASSO_Ridge = sapply(all_vars, get_penalized_coef, model = model_cv_adalasso_r_1se),
+  aLASSO_Lasso = sapply(all_vars, get_penalized_coef, model = model_cv_adalasso_1se),
+  SCAD = sapply(all_vars, get_penalized_coef, model = SCAD_Final),
+  check.names = FALSE
+)
+
+rownames(tableau_comparaison_beta) <- NULL
+
+# ==============================================================================
+# 4. Affichage du tableau formaté
+# ==============================================================================
+
+tableau_comparaison_beta |>
+  kable(
+    caption = "Comparaison des estimations des β (Les variables sont standardisées)",
+    align = "c"
+  ) |>
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover", "condensed")
+  )
+```
+
+
+##c) Meilleur modèle
+
+```{r}
+# Calcul du R2 In-Sample et de la CV MSE pour chaque méthode
+
+
+# Fonction utilitaire pour calculer le R2 in-sample
+calc_r2 <- function(y_true, y_pred) {
+  1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
+}
+
+# --- 1. Ridge ---
+pred_ridge <- predict(model_cv_ridge_1se, newx = x)
+r2_ridge <- calc_r2(y, pred_ridge)
+cv_mse_ridge <- ridge_cv$cvm[ridge_cv$lambda == lambda_cv_ridge_1se]
+
+# --- 2. Lasso ---
+pred_lasso <- predict(model_cv_lasso_1se, newx = x)
+r2_lasso <- calc_r2(y, pred_lasso)
+cv_mse_lasso <- lasso_cv$cvm[lasso_cv$lambda == lambda_cv_lasso_1se]
+
+# --- 3. Elastic Net (fixe, alpha = 0.5) ---
+pred_en <- predict(model_cv_en_1se, newx = x)
+r2_en <- calc_r2(y, pred_en)
+cv_mse_en <- en_cv$cvm[en_cv$lambda == lambda_cv_en_1se]
+
+# --- 4. Elastic Net (Grid Search) ---
+pred_en_grid <- predict(model_cv_1se, newx = x)
+r2_en_grid <- calc_r2(y, pred_en_grid)
+cv_mse_en_grid <- en_cv$cvm[en_cv$lambda == lambda_cv_1se]
+
+# --- 5. SCAD ---
+pred_scad <- predict(SCAD_Final, X = x)
+r2_scad <- calc_r2(y, pred_scad)
+# Récupération de la MSE CV associée à lambda_scad_1se
+i_scad_1se <- which(cvfit_SCAD$lambda == lambda_scad_1se)
+cv_mse_scad <- cvfit_SCAD$cve[i_scad_1se]
+
+# --- 6. Adaptive Lasso (Ridge) ---
+pred_adalasso_r <- predict(model_cv_adalasso_r_1se, newx = x)
+r2_adalasso_r <- calc_r2(y, pred_adalasso_r)
+cv_mse_adalasso_r <- fit_cv_adalasso_r_1se$cvm[fit_cv_adalasso_r_1se$lambda == lambda_cv_adalasso_r_1se]
+
+# --- 7. Adaptive Lasso (Lasso) ---
+pred_adalasso_l <- predict(model_cv_adalasso_1se, newx = x)
+r2_adalasso_l <- calc_r2(y, pred_adalasso_l)
+cv_mse_adalasso_l <- fit_cv_adalasso$cvm[fit_cv_adalasso$lambda == lambda_cv_adalasso_1se]
+
+# ==============================================================================
+# Consolidation des résultats sous forme de tableau
+# ==============================================================================
+
+tableau_perf <- data.frame(
+  Métrique = c("R2 In-Sample", "CV MSE"),
+  Ridge = c(round(r2_ridge, 4), round(cv_mse_ridge, 4)),
+  Lasso = c(round(r2_lasso, 4), round(cv_mse_lasso, 4)),
+  `Elastic-Net Fixed` = c(round(r2_en, 4), round(cv_mse_en, 4)),
+  `Elastic-Net Grid` = c(round(r2_en_grid, 4), round(cv_mse_en_grid, 4)),
+  SCAD = c(round(r2_scad, 4), round(cv_mse_scad, 4)),
+  `Adaptive Lasso Ridge` = c(round(r2_adalasso_r, 4), round(cv_mse_adalasso_r, 4)),
+  `Adaptive Lasso Lasso` = c(round(r2_adalasso_l, 4), round(cv_mse_adalasso_l, 4))
+)
+
+tableau_perf |>
+  kable(
+    caption = "Comparaison des performances (R² in-sample et CV MSE)",
+    digits = 4
+  ) |>
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover")
+  )
+```
 
