@@ -280,7 +280,7 @@ for (i in 1:9) {
   en_min <- c(en_min, min(elasticnet[[i]]$cvm))
 }
 
-elasticnet_cvm <- min(en_min)
+elasticnet_cvm <- alphalist[which.min(en_min)] 
 elasticnet_cvm
 
 en_cv <- cv.glmnet(x, y, alpha = elasticnet_cvm, lambda = lambdas_to_try, standardize = T, nfolds = 10)
