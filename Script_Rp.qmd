@@ -644,8 +644,8 @@ cv <- c(MCO = cv_ols, setNames(cv_mse, names(models)))
 nb <- c(MCO = ncol(x), sapply(models, nb_sel))
 
 tableau_perf <- data.frame(
-  Métrique = c("R² in-sample", "CV MSE", "R² CV (≈ 1 − MSE)", "Nb variables"),
-  rbind(round(r2, 4), round(cv, 4), round(1 - cv, 4), nb),
+  Métrique = c("R² in-sample", "CV MSE", "Nb variables"),
+  rbind(round(r2, 4), round(cv, 4), nb),
   check.names = FALSE, row.names = NULL
 )
 
