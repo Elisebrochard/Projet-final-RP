@@ -97,7 +97,6 @@ rosnerTest(base$EMP_RATE, k=3)
 base_sans_date <- base[, !(names(base) == "Date")]
 ```
 
-
 ```{r}
 # corrplot des variables très corrélées entre elles
 
@@ -445,7 +444,6 @@ hyperparam |>
   )
 ```
 
-
 ### Tableau avec les estimations MCO
 
 ```{r}
@@ -529,7 +527,6 @@ tableau_comparaison_beta |>
   )
 ```
 
-
 ##c) Meilleur modèle
 
 ```{r}
@@ -603,5 +600,59 @@ tableau_perf |>
     position = "center",
     bootstrap_options = c("striped", "hover")
   )
+```
+
+```{r}
+calc_r2 <- function(y_true, y_pred) 1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
+cv_at   <- function(cv, lam) cv$cvm[which.min(abs(cv$lambda - lam))]
+nb_sel  <- function(m) sum(as.matrix(coef(m))[-1, 1] != 0)
+pred    <- function(m) if (inherits(m, "ncvreg")) predict(m, X = x) else predict(m, newx = x)
+
+# Elastic-Net fixe : on refait le CV (même seed que le chunk 21) car en_cv a été écrasé
+set.seed(1)
+en_cv_fixed <- cv.glmnet(x, y, alpha = 0.5, lambda = lambdas_to_try,
+                         standardize = TRUE, nfolds = 10)
+
+# MCO : CV 10 folds manuel
+set.seed(1)
+folds <- sample(rep(1:10, length.out = nrow(x)))
+cv_ols <- mean(sapply(1:10, function(k) {
+  fit <- lm(EMP_RATE ~ ., data = df_data[folds != k, ])
+  mean((df_data$EMP_RATE[folds == k] - predict(fit, df_data[folds == k, ]))^2)
+}))
+
+models <- list(
+  "Ridge" = model_cv_ridge_1se, "Lasso" = model_cv_lasso_1se,
+  "Elastic-Net Fixed" = model_cv_en_1se, "Elastic-Net Grid" = model_cv_1se,
+  "SCAD" = SCAD_Final,
+  "Adaptive Lasso Ridge" = model_cv_adalasso_r_1se,
+  "Adaptive Lasso Lasso" = model_cv_adalasso_1se
+)
+
+cv_mse <- c(
+  cv_at(ridge_cv, lambda_cv_ridge_1se),
+  cv_at(lasso_cv, lambda_cv_lasso_1se),
+  cv_at(en_cv_fixed, lambda_cv_en_1se),
+  cv_at(en_cv, lambda_cv_1se),
+  cvfit_SCAD$cve[which.min(abs(cvfit_SCAD$lambda - lambda_scad_1se))],
+  cv_at(fit_cv_adalasso_r_1se, lambda_cv_adalasso_r_1se),
+  cv_at(fit_cv_adalasso, lambda_cv_adalasso_1se)
+)
+
+r2 <- c(MCO = summary_rlm$r.squared, sapply(models, function(m) calc_r2(y, pred(m))))
+cv <- c(MCO = cv_ols, setNames(cv_mse, names(models)))
+nb <- c(MCO = ncol(x), sapply(models, nb_sel))
+
+tableau_perf <- data.frame(
+  Métrique = c("R² in-sample", "CV MSE", "R² CV (≈ 1 − MSE)", "Nb variables"),
+  rbind(round(r2, 4), round(cv, 4), round(1 - cv, 4), nb),
+  check.names = FALSE, row.names = NULL
+)
+
+tableau_perf |>
+  kable(caption = "Comparaison des performances", align = "c") |>
+  kable_styling(full_width = FALSE, position = "center",
+                bootstrap_options = c("striped", "hover")) |>
+  footnote(general = "Elastic-Net Grid : alpha issu du code fourni. Adaptive Lasso Ridge : CV MSE issu du modèle pondéré.")
 ```
 
