@@ -426,7 +426,7 @@ hyperparam <- data.frame(
   Ridge = c(round(lambda_cv_ridge_1se, 5), 0),
   Lasso = c(round(lambda_cv_lasso_1se, 5), 1),
   `Elastic-Net-Fixed` = c(round(lambda_cv_en_1se, 5), 0.5),
-  `Elastic-Net-Gird-Search` = c(round(lambda_cv_1se, 5), 0.6),
+  `Elastic-Net-Grid-Search` = c(round(lambda_cv_1se, 5), 0.6),
   SCAD = c(round(lambda_scad_1se, 5), " - "),
   `Adaptive Lasso Lasso` = c(round(lambda_cv_adalasso_1se, 5), " - "),
   `Adaptive Lasso Ridge` = c(round(lambda_cv_adalasso_r_1se, 5), " - ")
