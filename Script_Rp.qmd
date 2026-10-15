@@ -283,11 +283,11 @@ for (i in 1:9) {
 elasticnet_cvm <- alphalist[which.min(en_min)] 
 elasticnet_cvm
 
-en_cv <- cv.glmnet(x, y, alpha = elasticnet_cvm, lambda = lambdas_to_try, standardize = T, nfolds = 10)
-plot(en_cv)
+en_cv_grid <- cv.glmnet(x, y, alpha = elasticnet_cvm, lambda = lambdas_to_try, standardize = T, nfolds = 10)
+plot(en_cv_grid)
 
 # meilleur lambda
-lambda_cv_1se <- en_cv$lambda.1se
+lambda_cv_1se <- en_cv_grid$lambda.1se
 lambda_cv_1se
 
 # évaluation du modèle final
@@ -420,6 +420,8 @@ which(! coef(model_cv_adalasso_1se) == 0, arr.ind = TRUE)
 
 ## b) Comparaison sous forme de tableau des hyperparamètres et variables sélectionnées par les différentes approches en reportant ces variables sélectionnées estimées par les MCO
 
+### Hyperparamètres
+
 ```{r}
 hyperparam <- data.frame(
   Paramètre = c("Lambda", "Alpha"),
@@ -444,21 +446,16 @@ hyperparam |>
   )
 ```
 
-### Tableau avec les estimations MCO
+### Tableau des coefficients (avec MCO en +)
+
+#### Estimation du MCO global (RLM)
 
 ```{r}
-library(dplyr)
-library(kableExtra)
-
-# ==============================================================================
-# 1. Estimation du MCO global (RLM)
-# ==============================================================================
-
 df_data <- data.frame(EMP_RATE = y, x)
 rlm_model <- lm(EMP_RATE ~ ., data = df_data)
 summary_rlm <- summary(rlm_model)
 
-# Récupération des coefficients du MCO et formatage avec étoiles de significativité
+# Récupération des coefficients du MCO + significativité (*)
 get_rlm_coef_stars <- function(var_name) {
   coefs <- summary_rlm$coefficients
   if (var_name %in% rownames(coefs)) {
@@ -473,10 +470,12 @@ get_rlm_coef_stars <- function(var_name) {
   }
   return("")
 }
+```
 
-# ==============================================================================
-# 2. Fonction utilitaire pour extraire les coefficients des méthodes pénalisées
-# ==============================================================================
+#### Extraire les coefs des différentes méthodes 
+
+```{r}
+# Fonction pour extraire les coefficients des méthodes pénalisées
 
 get_penalized_coef <- function(model, var_name) {
   coefs <- as.matrix(coef(model))
@@ -488,12 +487,12 @@ get_penalized_coef <- function(model, var_name) {
   }
   return("")
 }
+```
 
-# ==============================================================================
-# 3. Construction du Tableau Comparatif des Coefficients
-# ==============================================================================
+#### Tableau Comparatif des Coefficients
 
-# Liste de toutes les variables explicatives (colonnes de x)
+```{r}
+# Liste de toutes les variables explicatives 
 all_vars <- colnames(x)
 
 tableau_comparaison_beta <- data.frame(
@@ -511,9 +510,7 @@ tableau_comparaison_beta <- data.frame(
 
 rownames(tableau_comparaison_beta) <- NULL
 
-# ==============================================================================
-# 4. Affichage du tableau formaté
-# ==============================================================================
+# Tableau
 
 tableau_comparaison_beta |>
   kable(
@@ -527,72 +524,103 @@ tableau_comparaison_beta |>
   )
 ```
 
-##c) Meilleur modèle
+## c) Meilleur modèle
+
+### Calcul du R2 In-Sample et de la CV MSE pour chaque méthode
 
 ```{r}
-# Calcul du R2 In-Sample et de la CV MSE pour chaque méthode
-
-
-# Fonction utilitaire pour calculer le R2 in-sample
+# Fonction pour calculer le R2 in-sample
 calc_r2 <- function(y_true, y_pred) {
   1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
 }
 
-# --- 1. Ridge ---
+# Fonction pour claculer le nb de variables sélectionnées
+nb_sel <- function(m) sum(as.matrix(coef(m))[-1, 1] != 0)
+
+# Ridge 
 pred_ridge <- predict(model_cv_ridge_1se, newx = x)
 r2_ridge <- calc_r2(y, pred_ridge)
 cv_mse_ridge <- ridge_cv$cvm[ridge_cv$lambda == lambda_cv_ridge_1se]
+nb_ridge <- nb_sel(model_cv_ridge_1se)
 
-# --- 2. Lasso ---
+# Lasso 
 pred_lasso <- predict(model_cv_lasso_1se, newx = x)
 r2_lasso <- calc_r2(y, pred_lasso)
 cv_mse_lasso <- lasso_cv$cvm[lasso_cv$lambda == lambda_cv_lasso_1se]
+nb_lasso <- nb_sel(model_cv_lasso_1se)
 
-# --- 3. Elastic Net (fixe, alpha = 0.5) ---
+# Elastic Net (fixe)
 pred_en <- predict(model_cv_en_1se, newx = x)
 r2_en <- calc_r2(y, pred_en)
 cv_mse_en <- en_cv$cvm[en_cv$lambda == lambda_cv_en_1se]
+nb_en <- nb_sel(model_cv_en_1se)
 
-# --- 4. Elastic Net (Grid Search) ---
+# Elastic Net (Grid Search) 
 pred_en_grid <- predict(model_cv_1se, newx = x)
 r2_en_grid <- calc_r2(y, pred_en_grid)
-cv_mse_en_grid <- en_cv$cvm[en_cv$lambda == lambda_cv_1se]
+cv_mse_en_grid <- en_cv_grid$cvm[en_cv_grid$lambda == lambda_cv_1se]
+nb_en_grid <- nb_sel(model_cv_1se)
 
-# --- 5. SCAD ---
+# SCAD 
 pred_scad <- predict(SCAD_Final, X = x)
 r2_scad <- calc_r2(y, pred_scad)
 # Récupération de la MSE CV associée à lambda_scad_1se
 i_scad_1se <- which(cvfit_SCAD$lambda == lambda_scad_1se)
 cv_mse_scad <- cvfit_SCAD$cve[i_scad_1se]
+nb_scad <- nb_sel(SCAD_Final)
 
-# --- 6. Adaptive Lasso (Ridge) ---
+# Adaptive Lasso (Ridge) 
 pred_adalasso_r <- predict(model_cv_adalasso_r_1se, newx = x)
 r2_adalasso_r <- calc_r2(y, pred_adalasso_r)
 cv_mse_adalasso_r <- fit_cv_adalasso_r_1se$cvm[fit_cv_adalasso_r_1se$lambda == lambda_cv_adalasso_r_1se]
+nb_adalasso_r <- nb_sel(model_cv_adalasso_r_1se)
 
-# --- 7. Adaptive Lasso (Lasso) ---
+# Adaptive Lasso (Lasso)
 pred_adalasso_l <- predict(model_cv_adalasso_1se, newx = x)
 r2_adalasso_l <- calc_r2(y, pred_adalasso_l)
 cv_mse_adalasso_l <- fit_cv_adalasso$cvm[fit_cv_adalasso$lambda == lambda_cv_adalasso_1se]
+nb_adalasso_l <- nb_sel(model_cv_adalasso_1se)
+```
 
-# ==============================================================================
-# Consolidation des résultats sous forme de tableau
-# ==============================================================================
+### Cas des MCO
 
+```{r}
+
+r2_mco <- summary_rlm$r.squared
+
+# CV MSE : validation croisée 10 folds faite à la main
+set.seed(1)
+folds <- sample(rep(1:10, length.out = nrow(x)))
+cv_mse_mco <- mean(sapply(1:10, function(k) {
+  fit <- lm(EMP_RATE ~ ., data = df_data[folds != k, ])
+  mean((df_data$EMP_RATE[folds == k] - predict(fit, df_data[folds == k, ]))^2)
+}))
+
+# nb de variables significatives dans les MCO
+pvals_mco <- summary_rlm$coefficients[-1, "Pr(>|t|)"]
+nb_mco_signif <- sum(pvals_mco < 0.1)
+```
+
+### Résultats sous forme de tableau
+
+```{r}
 tableau_perf <- data.frame(
-  Métrique = c("R2 In-Sample", "CV MSE"),
-  Ridge = c(round(r2_ridge, 4), round(cv_mse_ridge, 4)),
-  Lasso = c(round(r2_lasso, 4), round(cv_mse_lasso, 4)),
-  `Elastic-Net Fixed` = c(round(r2_en, 4), round(cv_mse_en, 4)),
-  `Elastic-Net Grid` = c(round(r2_en_grid, 4), round(cv_mse_en_grid, 4)),
-  SCAD = c(round(r2_scad, 4), round(cv_mse_scad, 4)),
-  `Adaptive Lasso Ridge` = c(round(r2_adalasso_r, 4), round(cv_mse_adalasso_r, 4)),
-  `Adaptive Lasso Lasso` = c(round(r2_adalasso_l, 4), round(cv_mse_adalasso_l, 4))
+  Métrique = c("R2 In-Sample", "CV MSE", "Nb variables"),
+  MCO = c(round(r2_mco, 4), round(cv_mse_mco, 4),
+          paste0(nb_mco_signif, " signif.")),
+  Ridge = c(round(r2_ridge, 4), round(cv_mse_ridge, 4), nb_ridge),
+  Lasso = c(round(r2_lasso, 4), round(cv_mse_lasso, 4), nb_lasso),
+  `Elastic-Net Fixed` = c(round(r2_en, 4), round(cv_mse_en, 4), nb_en),
+  `Elastic-Net Grid` = c(round(r2_en_grid, 4), round(cv_mse_en_grid, 4), nb_en_grid),
+  SCAD = c(round(r2_scad, 4), round(cv_mse_scad, 4), nb_scad),
+  `Adaptive Lasso Ridge` = c(round(r2_adalasso_r, 4), round(cv_mse_adalasso_r, 4), nb_adalasso_r),
+  `Adaptive Lasso Lasso` = c(round(r2_adalasso_l, 4), round(cv_mse_adalasso_l, 4), nb_adalasso_l),
+  check.names = FALSE
 )
 
 tableau_perf |>
   kable(
-    caption = "Comparaison des performances (R² in-sample et CV MSE)",
+    caption = "Comparaison des performances (R2 in-sample et CV MSE)",
     digits = 4
   ) |>
   kable_styling(
@@ -601,58 +629,3 @@ tableau_perf |>
     bootstrap_options = c("striped", "hover")
   )
 ```
-
-```{r}
-calc_r2 <- function(y_true, y_pred) 1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
-cv_at   <- function(cv, lam) cv$cvm[which.min(abs(cv$lambda - lam))]
-nb_sel  <- function(m) sum(as.matrix(coef(m))[-1, 1] != 0)
-pred    <- function(m) if (inherits(m, "ncvreg")) predict(m, X = x) else predict(m, newx = x)
-
-# Elastic-Net fixe : on refait le CV (même seed que le chunk 21) car en_cv a été écrasé
-set.seed(1)
-en_cv_fixed <- cv.glmnet(x, y, alpha = 0.5, lambda = lambdas_to_try,
-                         standardize = TRUE, nfolds = 10)
-
-# MCO : CV 10 folds manuel
-set.seed(1)
-folds <- sample(rep(1:10, length.out = nrow(x)))
-cv_ols <- mean(sapply(1:10, function(k) {
-  fit <- lm(EMP_RATE ~ ., data = df_data[folds != k, ])
-  mean((df_data$EMP_RATE[folds == k] - predict(fit, df_data[folds == k, ]))^2)
-}))
-
-models <- list(
-  "Ridge" = model_cv_ridge_1se, "Lasso" = model_cv_lasso_1se,
-  "Elastic-Net Fixed" = model_cv_en_1se, "Elastic-Net Grid" = model_cv_1se,
-  "SCAD" = SCAD_Final,
-  "Adaptive Lasso Ridge" = model_cv_adalasso_r_1se,
-  "Adaptive Lasso Lasso" = model_cv_adalasso_1se
-)
-
-cv_mse <- c(
-  cv_at(ridge_cv, lambda_cv_ridge_1se),
-  cv_at(lasso_cv, lambda_cv_lasso_1se),
-  cv_at(en_cv_fixed, lambda_cv_en_1se),
-  cv_at(en_cv, lambda_cv_1se),
-  cvfit_SCAD$cve[which.min(abs(cvfit_SCAD$lambda - lambda_scad_1se))],
-  cv_at(fit_cv_adalasso_r_1se, lambda_cv_adalasso_r_1se),
-  cv_at(fit_cv_adalasso, lambda_cv_adalasso_1se)
-)
-
-r2 <- c(MCO = summary_rlm$r.squared, sapply(models, function(m) calc_r2(y, pred(m))))
-cv <- c(MCO = cv_ols, setNames(cv_mse, names(models)))
-nb <- c(MCO = ncol(x), sapply(models, nb_sel))
-
-tableau_perf <- data.frame(
-  Métrique = c("R² in-sample", "CV MSE", "Nb variables"),
-  rbind(round(r2, 4), round(cv, 4), nb),
-  check.names = FALSE, row.names = NULL
-)
-
-tableau_perf |>
-  kable(caption = "Comparaison des performances", align = "c") |>
-  kable_styling(full_width = FALSE, position = "center",
-                bootstrap_options = c("striped", "hover")) |>
-  footnote(general = "Elastic-Net Grid : alpha issu du code fourni. Adaptive Lasso Ridge : CV MSE issu du modèle pondéré.")
-```
-
