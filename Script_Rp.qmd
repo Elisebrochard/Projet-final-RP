@@ -341,9 +341,9 @@ SCAD_Final$beta
 which(! coef(SCAD_Final) == 0, arr.ind = TRUE)
 ```
 
-### Adaptative Lasso
+### Adaptive Lasso
 
-#### Adaptative Lasso - Ridge
+#### Adaptive Lasso - Ridge
 
 ```{r}
 # reproductibilité
@@ -382,7 +382,7 @@ model_cv_adalasso_r_1se$beta
 which(! coef(model_cv_adalasso_r_1se) == 0, arr.ind = TRUE)
 ```
 
-#### Adaptative Lasso - Lasso
+#### Adaptive Lasso - Lasso
 
 ```{r}
 # reproductibilité
