@@ -472,7 +472,7 @@ get_rlm_coef_stars <- function(var_name) {
 }
 ```
 
-#### Extraire les coefs des différentes méthodes 
+#### Extraire les coefs des différentes méthodes
 
 ```{r}
 # Fonction pour extraire les coefficients des méthodes pénalisées
@@ -514,7 +514,7 @@ rownames(tableau_comparaison_beta) <- NULL
 
 tableau_comparaison_beta |>
   kable(
-    caption = "Comparaison des estimations des β (Les variables sont standardisées)",
+    caption = "Comparaison des estimations des bêtas (Les variables sont standardisées)",
     align = "c"
   ) |>
   kable_styling(
